@@ -1,6 +1,9 @@
 library(RPostgreSQL)
 library(DT)
 library(magrittr)
+library(shiny)
+library(shinydashboard)
+library(dplyr)
 
 password = scan(".pgpass", what = "")
 db <- dbConnect(PostgreSQL(), 
