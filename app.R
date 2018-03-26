@@ -8,63 +8,95 @@ library(shinydashboard)
 library(RPostgreSQL)
 library(DT)
 library(magrittr)
+library(dplyr)
 
 # source('global.R')
 variablenames <- dbGetQuery(db, "SELECT variablecode FROM odm2.variables")
+sitenames <- dbGetQuery(db, "SELECT samplingfeaturecode FROM odm2.samplingfeatures WHERE samplingfeaturetypecv = 'site'")
 
 ui <- dashboardPage(
   dashboardHeader(title = "ODM2 database"),
   dashboardSidebar(
     tags$style(".skin-blue .sidebar a { color: #444; }"),
-    sidebarMenu(
-      menuItem("Dashboard", tabName = "dashboard", icon = icon("dashboard")),
-      menuItem("Widgets", tabName = "widgets", icon = icon("th"))
-  ),
-  selectizeInput(inputId = "select_variable", label = "choose variable",
-                 choices = variablenames, selected = "methaneDissolved"),
-  downloadButton("downloadData", "Download")
+  #   sidebarMenu(
+  #     menuItem("Dashboard", tabName = "dashboard", icon = icon("dashboard")),
+  #     menuItem("Widgets", tabName = "widgets", icon = icon("th"))
+  # ),
+  # selectizeInput(inputId = "select_variable", label = "choose variable", multiple = TRUE,
+  #                choices = variablenames, selected = "methaneDissolved"),
+  checkboxGroupInput(inputId = "select_variable", label = "choose variable",
+                 choices = variablenames$variablecode, selected = "methaneDissolved"),
+  selectizeInput(inputId = "select_sites", label = "choose sites", multiple = TRUE,
+                 choices = sitenames, selected = c("DB", "QB", "DK", "TB", "ND", "BB")),
+  # checkboxGroupInput(inputId = "select_sites", label = "choose sites",
+  #                choices = sitenames$samplingfeaturecode, selected = c("DB", "QB", "DK", "TB", "ND", "BB")),
+  div()
+  # box(title = "Download", status = "primary", solidHeader = TRUE,
+  #     collapsible = TRUE,
+  #     downloadButton("downloadData", "Save current data"))
   
   ),
   dashboardBody(
-    fluidRow(
-     
-      box(dataTableOutput("datatable1")))
+    # fluidRow(box(title = "Download", status = "primary", solidHeader = TRUE,
+    #     collapsible = TRUE,
+    #     downloadButton("downloadData", "Save current data"))),
+    downloadButton("downloadData", "Save current data"),div(),
+      div(dataTableOutput("datatable1"), style = "font-size:80%; font-family:arial; width:100%; height:50px")
+      # dataTableOutput("datatable1"))
   )
 )
 
 server <- function(input, output) { 
   
   table1_data <- reactive({
-    sql <- "SELECT mrv.datavalue, mrv.valuedatetime, sf.samplingfeaturecode, r.featureactionid, v.variablecode, u.unitsname
-  FROM odm2.measurementresultvalues mrv, odm2.results r, odm2.variables v, odm2.units u, odm2.samplingfeatures sf, odm2.featureactions fa
-    WHERE r.variableid = v.variableid 
-    AND r.featureactionid = fa.featureactionid
-    AND fa.samplingfeatureid = sf.samplingfeatureid
-    AND r.unitsid = u.unitsid
-    AND mrv.resultid = r.resultid 
-    AND variablecode = ?variablecode"
+    sql <- "SELECT 
+              mrv.datavalue,
+              mrv.valuedatetime,
+              mrv.valuedatetimeutcoffset AS utc,
+              sf.samplingfeaturecode,
+              sf2.samplingfeaturecode AS siteID,
+              v.variablecode,
+              u.unitsname
+            FROM 
+              odm2.measurementresultvalues mrv
+            INNER JOIN
+              odm2.results r ON r.resultid = mrv.resultid
+            INNER JOIN
+              odm2.variables v ON v.variableid = r.variableid
+            INNER JOIN
+              odm2.units u ON u.unitsid = r.unitsid
+            INNER JOIN 
+              odm2.featureactions fa ON fa.featureactionid = r.featureactionid
+            INNER JOIN 
+              odm2.samplingfeatures sf ON sf.samplingfeatureid = fa.samplingfeatureid
+            INNER JOIN
+              odm2.relatedfeatures rf ON rf.samplingfeatureid = sf.samplingfeatureid
+            INNER JOIN
+              odm2.samplingfeatures sf2 ON  sf2.samplingfeatureid = rf.relatedfeatureid"
     
-    sql <- sqlInterpolate(ANSI(), sql, variablecode = input$select_variable)
+    
+    sql <- sqlInterpolate(ANSI(), sql)
     # sql <- gsub("\n", "", sql)
+    query_results <- dbGetQuery(db, sql)
     
-    dbGetQuery(db, sql)
-    
+    query_results 
   })
 
-    output$datatable1 <- renderDataTable({ table1_data() }, 
-                                         options = list(dom = 'plt'))
+    output$datatable1 <- renderDataTable({ table1_data() %>% 
+        filter(siteid %in% input$select_sites, 
+               variablecode %in% input$select_variable) }, 
+                                         options = list(dom = 'pltif', pageLength = 10))
   
-  # Downloadable csv of selected dataset ----
+  # Downloadable csv of selected dataset
   output$downloadData <- downloadHandler(
     filename = function() {
-      paste0(input$select_variable, ".csv", sep = "")
+      paste0("db_", gsub('[[:punct:] ]+','_', x = Sys.time()), ".csv", sep = "")
     },
     content = function(file) {
-      write.csv(table1_data(), file, row.names = FALSE)
+      write.csv(as.data.frame(table1_data()), file, row.names = FALSE)
     }
   )
-
-  
+    
   }
 
 shinyApp(ui, server)
