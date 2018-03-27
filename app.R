@@ -16,15 +16,13 @@ sitenames <- dbGetQuery(db, "SELECT samplingfeaturecode
                               WHERE samplingfeaturetypecv = 'site'")
 
 ui <- dashboardPage(
-  dashboardHeader(title = "ODM2 database"),
+  dashboardHeader(title = "Choptank database"),
   dashboardSidebar(
     tags$style(".skin-blue .sidebar a { color: #444; }"),
   #   sidebarMenu(
   #     menuItem("Dashboard", tabName = "dashboard", icon = icon("dashboard")),
   #     menuItem("Widgets", tabName = "widgets", icon = icon("th"))
   # ),
-  # selectizeInput(inputId = "select_variable", label = "choose variable", multiple = TRUE,
-  #                choices = variablenames, selected = "methaneDissolved"),
   checkboxGroupInput(inputId = "select_variable", label = "choose variable",
                  choices = variablenames$variablecode, selected = "methaneDissolved"),
   selectizeInput(inputId = "select_sites", label = "choose sites", multiple = TRUE,
@@ -42,8 +40,14 @@ ui <- dashboardPage(
     # fluidRow(box(title = "Download", status = "primary", solidHeader = TRUE,
     #     collapsible = TRUE,
     #     downloadButton("downloadData", "Save current data"))),
-    downloadButton("downloadData", "Save current data"),div(),
-      div(dataTableOutput("datatable1"), style = "font-size:80%; font-family:arial; width:100%; height:50px")
+    p("This is a simple interface to download data 
+       from the choptank hydro connectivity database.
+      Filter data by variable, sites, and date and
+      download as a .csv file."),
+    downloadButton("downloadData", "Save current data"),
+    br(),br(),
+    div(dataTableOutput("datatable1"), 
+        style = "font-size:80%; font-family:arial; width:100%; height:50px")
       # dataTableOutput("datatable1"))
   )
 )
