@@ -2,17 +2,18 @@
 # This is a Shiny web application. You can run the application by clicking
 # the 'Run App' button above.
 #
-
-library(shiny)
-library(shinydashboard)
 library(RPostgreSQL)
 library(DT)
 library(magrittr)
+library(shiny)
+library(shinydashboard)
 library(dplyr)
 
 # source('global.R')
 variablenames <- dbGetQuery(db, "SELECT variablecode FROM odm2.variables")
-sitenames <- dbGetQuery(db, "SELECT samplingfeaturecode FROM odm2.samplingfeatures WHERE samplingfeaturetypecv = 'site'")
+sitenames <- dbGetQuery(db, "SELECT samplingfeaturecode 
+                              FROM odm2.samplingfeatures 
+                              WHERE samplingfeaturetypecv = 'site'")
 
 ui <- dashboardPage(
   dashboardHeader(title = "ODM2 database"),
@@ -30,7 +31,8 @@ ui <- dashboardPage(
                  choices = sitenames, selected = c("DB", "QB", "DK", "TB", "ND", "BB")),
   # checkboxGroupInput(inputId = "select_sites", label = "choose sites",
   #                choices = sitenames$samplingfeaturecode, selected = c("DB", "QB", "DK", "TB", "ND", "BB")),
-  div()
+  div(),
+  dateRangeInput("dates", label = h3("Date range"), start = "2017-05-01")
   # box(title = "Download", status = "primary", solidHeader = TRUE,
   #     collapsible = TRUE,
   #     downloadButton("downloadData", "Save current data"))
@@ -82,10 +84,13 @@ server <- function(input, output) {
     query_results 
   })
 
-    output$datatable1 <- renderDataTable({ table1_data() %>% 
+    output$datatable1 <- renderDataTable({ 
+      table1_data() %>% 
+        mutate(date = as.Date(valuedatetime)) %>%
         filter(siteid %in% input$select_sites, 
-               variablecode %in% input$select_variable) }, 
-                                         options = list(dom = 'pltif', pageLength = 10))
+               variablecode %in% input$select_variable,
+               date > input$dates[1], date < input$dates[2]
+        )}, options = list(dom = 'pltif', pageLength = 10))
   
   # Downloadable csv of selected dataset
   output$downloadData <- downloadHandler(
